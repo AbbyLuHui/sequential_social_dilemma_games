@@ -25,6 +25,7 @@ DEFAULT_COLOURS = {' ': [0, 0, 0],  # Black background
                    '': [180, 180, 180],  # Grey board walls
                    '@': [180, 180, 180],  # Grey board walls
                    'A': [0, 255, 0],  # Green apples
+                   'D': [245, 0, 100],  #bad apples
                    'F': [255, 255, 0],  # Yellow fining beam
                    'P': [159, 67, 255],  # Purple player
 
@@ -188,13 +189,66 @@ class MapEnv(MultiAgentEnv):
         info = {}
         for agent in self.agents.values():
             agent.grid = map_with_agents
-            rgb_arr = self.map_to_colors(agent.get_state(), self.color_map)
+            rgb_arr = self.map_to_colors(agent.get_state(), self.color_map) 
             rgb_arr = self.rotate_view(agent.orientation, rgb_arr)
+            #apple_position = self.check_apple_position(agent.get_state(), self.color_map)
             observations[agent.agent_id] = rgb_arr
+            #print(rgb_arr[:,:,0])
+            #observations[agent.agent_id] = apple_position
             rewards[agent.agent_id] = agent.compute_reward()
             dones[agent.agent_id] = agent.get_done()
         dones["__all__"] = np.any(list(dones.values()))
         return observations, rewards, dones, info
+
+    def social_norm(self, goal):
+        if goal == "A":
+            allowed = True
+        else:
+            allowed = False
+        return allowed
+
+    def get_social_norm(self):
+        norm = {}
+        for item in DEFAULT_COLOURS:
+            norm[item] = self.social_norm(item)
+        return norm
+
+ 
+    """
+    def apple_observations(self):
+        observations={}
+        map_with_agents = self.get_map_with_agents()
+        for agent in self.agents.values():
+            obs=[]
+            agent.grid = map_with_agents
+            rgb_arr = self.map_to_colors(agent.grid, self.color_map)
+            for row_elem in range(agent.grid.shape[0]):
+                for col_elem in range(agent.grid.shape[1]):
+                    if rgb_arr[row_elem][col_elem][1]==255:
+                        obs.append((row_elem, col_elem))
+            observations[agent.agent_id]=obs
+        return observations
+
+    def badapple_observations(self):
+        observations=[]
+        map_with_agents = self.get_map_with_agents()
+        rgb_arr = self.map_to_colors(map_with_agents, self.color_map)
+        for row_elem in range(map_with_agents.shape[0]):
+            for col_elem in range(map_with_agents.shape[1]):
+                if rgb_arr[row_elem][col_elem][0]==245:
+                    observations.append((row_elem, col_elem))
+        return observations
+
+    def agent_observations(self):
+        observations = []
+        map_with_agents = self.get_map_with_agents()
+        rgb_arr = self.map_to_colors(map_with_agents, self.color_map)
+        for row_elem in range(map_with_agents.shape[0]):
+            for col_elem in range(map_with_agents.shape[1]):
+                if rgb_arr[row_elem][col_elem][0] not in [180,0,245,255]:
+                    observations.append((row_elem, col_elem))
+        return observations
+    """
 
     def reset(self):
         """Reset the environment.
@@ -312,8 +366,20 @@ class MapEnv(MultiAgentEnv):
         for row_elem in range(map.shape[0]):
             for col_elem in range(map.shape[1]):
                 rgb_arr[row_elem, col_elem, :] = color_map[map[row_elem, col_elem]]
-
         return rgb_arr
+    
+    def check_apple_position(self, map=None, color_map=None):
+        if map is None:
+            map=self.get_map_with_agents()
+        if color_map is None:
+            color_map = self.color_map
+        apple_position = []
+        for row_elem in range(map.shape[0]):
+            for col_elem in range(map.shape[1]):
+                if np.array_equal(color_map[map[row_elem, col_elem]], np.array([0,255,0])):
+                    apple_position.append((row_elem, col_elem))
+        #print(apple_position)
+        return apple_position
 
     def render(self, filename=None):
         """ Creates an image of the map to plot or save.
@@ -540,8 +606,10 @@ class MapEnv(MultiAgentEnv):
         self.build_walls()
         self.custom_reset()
 
-    def update_map_fire(self, firing_pos, firing_orientation, fire_len, fire_char, cell_types=[],
-                        update_char=[], blocking_cells='P'):
+    def update_map_fire(self, firing_pos, firing_orientation, fire_len, fire_char,         
+                        cell_types=[], update_char=[], blocking_cells='P'):
+        updates=[]
+        return updates
         """From a firing position, fire a beam that may clean or hit agents
 
         Notes:
@@ -576,7 +644,7 @@ class MapEnv(MultiAgentEnv):
         -------
         updates: (tuple (row, col, char))
             the cells that have been hit by the beam and what char will be placed there
-        """
+
         agent_by_pos = {tuple(agent.get_pos()): agent_id for agent_id, agent in self.agents.items()}
         start_pos = np.asarray(firing_pos)
         firing_direction = ORIENTATIONS[firing_orientation]
@@ -623,7 +691,7 @@ class MapEnv(MultiAgentEnv):
                     break
 
         self.beam_pos += firing_points
-        return updates
+"""
 
     def spawn_point(self):
         """Returns a randomly selected spawn point."""
@@ -640,7 +708,8 @@ class MapEnv(MultiAgentEnv):
 
     def spawn_rotation(self):
         """Return a randomly selected initial rotation for an agent"""
-        rand_int = np.random.randint(len(ORIENTATIONS.keys()))
+        #rand_int = np.random.randint(len(ORIENTATIONS.keys()))
+        rand_int = 2
         return list(ORIENTATIONS.keys())[rand_int]
 
     def rotate_view(self, orientation, view):
@@ -694,6 +763,7 @@ class MapEnv(MultiAgentEnv):
 
     # TODO(ev) this should be an agent property
     def update_rotation(self, action, curr_orientation):
+        '''
         if action == 'TURN_COUNTERCLOCKWISE':
             if curr_orientation == 'LEFT':
                 return 'DOWN'
@@ -712,6 +782,7 @@ class MapEnv(MultiAgentEnv):
                 return 'DOWN'
             else:
                 return 'LEFT'
+         '''
 
     # TODO(ev) this definitely should go into utils or the general agent class
     def test_if_in_bounds(self, pos):

@@ -6,8 +6,8 @@ from social_dilemmas.envs.map_env import MapEnv, ACTIONS
 from social_dilemmas.envs.agent import CleanupAgent  # CLEANUP_VIEW_SIZE
 
 # Add custom actions to the agent
-ACTIONS['FIRE'] = 5  # length of firing beam
-ACTIONS['CLEAN'] = 5  # length of cleanup beam
+ACTIONS['FIRE'] = 0  # length of firing beam
+ACTIONS['CLEAN'] = 0  # length of cleanup beam
 
 # Custom colour dictionary
 CLEANUP_COLORS = {'C': [100, 255, 255],  # Cyan cleaning beam
@@ -17,10 +17,10 @@ CLEANUP_COLORS = {'C': [100, 255, 255],  # Cyan cleaning beam
 
 SPAWN_PROB = [0, 0.005, 0.02, 0.05]
 
-thresholdDepletion = 0.4
+thresholdDepletion = 0.3     #0.0 gives zero apples
 thresholdRestoration = 0.0
-wasteSpawnProbability = 0.5
-appleRespawnProbability = 0.05
+wasteSpawnProbability = 0.0
+appleRespawnProbability = 0.008
 
 
 class CleanupEnv(MapEnv):
@@ -38,6 +38,7 @@ class CleanupEnv(MapEnv):
 
         # make a list of the potential apple and waste spawn points
         self.apple_points = []
+        self.badapple_points = []
         self.waste_start_points = []
         self.waste_points = []
         self.river_points = []
@@ -50,6 +51,8 @@ class CleanupEnv(MapEnv):
                     self.apple_points.append([row, col])
                 elif self.base_map[row, col] == 'S':
                     self.stream_points.append([row, col])
+                elif self.base_map[row, col] == 'C':
+                    self.badapple_points.append([row,col])
                 if self.base_map[row, col] == 'H':
                     self.waste_start_points.append([row, col])
                 if self.base_map[row, col] == 'H' or self.base_map[row, col] == 'R':
@@ -107,6 +110,7 @@ class CleanupEnv(MapEnv):
     def setup_agents(self):
         """Constructs all the agents in self.agent"""
         map_with_agents = self.get_map_with_agents()
+        norm = self.get_social_norm()
 
         for i in range(self.num_agents):
             agent_id = 'agent-' + str(i)
@@ -115,7 +119,7 @@ class CleanupEnv(MapEnv):
             # grid = util.return_view(map_with_agents, spawn_point,
             #                         CLEANUP_VIEW_SIZE, CLEANUP_VIEW_SIZE)
             # agent = CleanupAgent(agent_id, spawn_point, rotation, grid)
-            agent = CleanupAgent(agent_id, spawn_point, rotation, map_with_agents)
+            agent = CleanupAgent(agent_id, spawn_point, rotation, map_with_agents, norm)
             self.agents[agent_id] = agent
 
     def spawn_apples_and_waste(self):
@@ -128,6 +132,13 @@ class CleanupEnv(MapEnv):
                 rand_num = np.random.rand(1)[0]
                 if rand_num < self.current_apple_spawn_prob:
                     spawn_points.append((row, col, 'A'))
+
+        for i in range(len(self.badapple_points)):
+            row, col = self.badapple_points[i]
+            if [row, col] not in self.agent_pos and self.world_map[row, col] != 'D':
+                rand_num = np.random.rand(1)[0]
+                if rand_num < 0.01:
+                    spawn_points.append((row, col, 'D'))
 
         # spawn one waste point, only one can spawn per step
         if not np.isclose(self.current_waste_spawn_prob, 0):
@@ -153,10 +164,12 @@ class CleanupEnv(MapEnv):
             self.current_waste_spawn_prob = wasteSpawnProbability
             if waste_density <= thresholdRestoration:
                 self.current_apple_spawn_prob = appleRespawnProbability
+                #self.current_apple_spawn_prob = 0.005
             else:
-                spawn_prob = (1 - (waste_density - thresholdRestoration)
-                              / (thresholdDepletion - thresholdRestoration)) \
-                             * appleRespawnProbability
+                #spawn_prob = (1 - (waste_density - thresholdRestoration)
+                #              / (thresholdDepletion - thresholdRestoration)) \
+                #             * appleRespawnProbability
+                spawn_prob = appleRespawnProbability
                 self.current_apple_spawn_prob = spawn_prob
 
     def compute_permitted_area(self):

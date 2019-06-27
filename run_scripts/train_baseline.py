@@ -7,6 +7,8 @@ from ray.tune import run_experiments
 from ray.tune.registry import register_env
 import tensorflow as tf
 
+import sys
+
 from social_dilemmas.envs.harvest import HarvestEnv
 from social_dilemmas.envs.cleanup import CleanupEnv
 from models.conv_to_fc_net import ConvToFCNet

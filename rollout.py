@@ -45,7 +45,7 @@ class Controller(object):
 
         # TODO: initialize agents here
 
-    def rollout(self, horizon=50, save_path=None):
+    def rollout(self, horizon=500, save_path=None):
         """ Rollout several timesteps of an episode of the environment.
 
         Args:
@@ -62,12 +62,22 @@ class Controller(object):
         for i in range(horizon):
             agents = list(self.env.agents.values())
             action_dim = agents[0].action_space.n
-            rand_action = np.random.randint(action_dim, size=5)
-            obs, rew, dones, info, = self.env.step({'agent-0': rand_action[0],
-                                                    'agent-1': rand_action[1],
-                                                    'agent-2': rand_action[2],
-                                                    'agent-3': rand_action[3],
-                                                    'agent-4': rand_action[4]})
+            #rand_action = np.random.randint(action_dim, size=5)
+            #apple_pos = self.env.apple_observations()
+            #b_pos = self.env.badapple_observations()
+            #others = self.env.agent_observations()
+
+
+# 3- go right; 2 - go left; 1 - go down; 0 - go up; 
+            depth=3
+            #if(i<=2):
+            #    depth=0
+            obs, rew, dones, info, = self.env.step({'agent-0': agents[0].policy(depth),
+                                                    'agent-1': agents[1].policy(depth),
+                                                    'agent-2': agents[2].policy(depth),
+                                                    'agent-3': agents[3].policy(depth),
+                                                    'agent-4': agents[4].policy(depth)})
+
 
             sys.stdout.flush()
 
@@ -81,7 +91,7 @@ class Controller(object):
 
         return rewards, observations, full_obs
 
-    def render_rollout(self, horizon=50, path=None,
+    def render_rollout(self, horizon=500, path=None,
                        render_type='pretty', fps=8):
         """ Render a rollout into a video.
 
