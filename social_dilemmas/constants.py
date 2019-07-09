@@ -1,7 +1,8 @@
 # Scheme heavily adapted from https://github.com/deepmind/pycolab/
 # '@' means "wall"
 # 'P' means "player" spawn point
-# 'A' means apply spawn point
+# 'B' means green apple spawn point
+# 'R' means red apple spawn point
 # '' is empty space
 
 HARVEST_MAP = [
@@ -22,31 +23,33 @@ HARVEST_MAP = [
     '@       P     A         P  P P     P @',
     '@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@']
 
-CLEANUP_MAP = [
+NORM_MAP = [
     '@@@@@@@@@@@@@@@@@@',
-    '@BBBBB      BBBBB@',
-    '@BBBB      C BBBB@',
-    '@BBBBB C    BBBBB@',
-    '@BBBB   P  C BBBB@',
-    '@BBBBBC   P BBBBB@',
-    '@BBBB   C C  BBBB@',
-    '@BBCBB      BBBBB@',
-    '@BBBB      C BBBB@',
-    '@BBBB C      BBBB@',
-    '@BBBB   CP P BBBB@',
-    '@BBBBB   P  BBBBB@',
-    '@BBBB  C   P BBBB@',
-    '@BBBB   P   BBCBB@',
-    '@BBBB    C   BBBB@',
-    '@BBBBB   P  BBBBB@',
-    '@BBBB  C     BBBB@',
-    '@BBBBB  P P BBBBB@',
-    '@BBBB     C  BBBB@',
-    '@BBBBB  C   BBBBB@',
-    '@BBBB C      BCBB@',
-    '@BBBBB      BBBBB@',
-    '@BBBB    C   BBBB@',
-    '@BBBBB      BBBBB@',
+    '@GGBGG   B  GBGGR@',
+    '@GRRG  B   R GGGG@',
+    '@GGGGG R    GGGGG@',
+    '@RGGG   P  R GGRG@',
+    '@GBGGGR   P GBBGG@',
+    '@GGBG   R R  BGRG@',
+    '@RRGGGB     GBRGG@',
+    '@GBGG   B  R GGBG@',
+    '@GGBG R      GRGG@',
+    '@GRGG   RP P BGGB@',
+    '@GGBGR   P  GGRGG@',
+    '@BGGG  R   P BGGG@',
+    '@GBRG   P   GGRBG@',
+    '@GRGB    R   GGBG@',
+    '@GBBGRR  P  BGGGG@',
+    '@GGGB  R     GBGG@',
+    '@GBGGG  P P BGGRG@',
+    '@GRGB     R  GGRR@',
+    '@BBGGG  R   GBBGG@',
+    '@GGGB R      GRGG@',
+    '@GBGGG  B   BGRRG@',
+    '@GGGB    R   GGGB@',
+    '@GGRGG    B GBGGG@',
     '@@@@@@@@@@@@@@@@@@']
+
+
 
 

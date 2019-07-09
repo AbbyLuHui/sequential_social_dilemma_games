@@ -24,21 +24,29 @@ DEFAULT_COLOURS = {' ': [0, 0, 0],  # Black background
                    '0': [0, 0, 0],  # Black background beyond map walls
                    '': [180, 180, 180],  # Grey board walls
                    '@': [180, 180, 180],  # Grey board walls
-                   'A': [0, 255, 0],  # Green apples
-                   'D': [245, 0, 100],  #bad apples
-                   'F': [255, 255, 0],  # Yellow fining beam
+                   'G': [0, 255, 0],  # Green apples
+                   'R': [245, 0, 100],  # Red apples
+                   'B': [5, 81, 154],  # Blue apples
                    'P': [159, 67, 255],  # Purple player
 
                    # Colours for agents. R value is a unique identifier
                    '1': [159, 67, 255],  # Purple
-                   '2': [2, 81, 154],  # Blue
-                   '3': [204, 0, 204],  # Magenta
-                   '4': [216, 30, 54],  # Red
+                   '2': [238, 223, 16],  # Yellow
+                   '3': [250, 204, 255],  # Pink
+                   '4': [100, 255, 255],  # Cyan
                    '5': [254, 151, 0],  # Orange
-                   '6': [100, 255, 255],  # Cyan
-                   '7': [99, 99, 255],  # Lavender
-                   '8': [250, 204, 255],  # Pink
-                   '9': [238, 223, 16]}  # Yellow
+                   '6': [99, 99, 255],  # Lavender
+                   '7': [204, 0, 204],  # Magenta
+                   '8': [216, 30, 54],  # Red
+                   '9': [2, 81, 154]}  # Blue
+
+
+ACTION_DICT={0: "GO UP",
+             1: "GO DOWN",
+             2: "GO LEFT",
+             3: "GO RIGHT"}
+
+DEFAULT_GOALS = ['G', 'R']
 
 # the axes look like
 # graphic is here to help me get my head in order
@@ -59,7 +67,7 @@ DEFAULT_COLOURS = {' ': [0, 0, 0],  # Black background
 
 class MapEnv(MultiAgentEnv):
 
-    def __init__(self, ascii_map, num_agents=1, render=True, color_map=None):
+    def __init__(self, ascii_map,  num_agents=1, render=True, norm=dict(), reward=dict(), color_map=None):
         """
 
         Parameters
@@ -81,6 +89,10 @@ class MapEnv(MultiAgentEnv):
         self.beam_pos = []
 
         self.agents = {}
+        self.norm = {goal : 1 for goal in DEFAULT_GOALS}
+        self.reward = {goal : 1 for goal in DEFAULT_GOALS}
+        self.norm.update(norm)
+        self.reward.update(reward)
 
         # returns the agent at a desired position if there is one
         self.pos_dict = {}
@@ -95,6 +107,8 @@ class MapEnv(MultiAgentEnv):
                 elif self.base_map[row, col] == '@':
                     self.wall_points.append([row, col])
         self.setup_agents()
+
+
 
     def custom_reset(self):
         """Reset custom elements of the map. For example, spawn apples and build walls"""
@@ -191,7 +205,6 @@ class MapEnv(MultiAgentEnv):
             agent.grid = map_with_agents
             rgb_arr = self.map_to_colors(agent.get_state(), self.color_map) 
             rgb_arr = self.rotate_view(agent.orientation, rgb_arr)
-            #apple_position = self.check_apple_position(agent.get_state(), self.color_map)
             observations[agent.agent_id] = rgb_arr
             #print(rgb_arr[:,:,0])
             #observations[agent.agent_id] = apple_position
@@ -200,55 +213,6 @@ class MapEnv(MultiAgentEnv):
         dones["__all__"] = np.any(list(dones.values()))
         return observations, rewards, dones, info
 
-    def social_norm(self, goal):
-        if goal == "A":
-            allowed = True
-        else:
-            allowed = False
-        return allowed
-
-    def get_social_norm(self):
-        norm = {}
-        for item in DEFAULT_COLOURS:
-            norm[item] = self.social_norm(item)
-        return norm
-
- 
-    """
-    def apple_observations(self):
-        observations={}
-        map_with_agents = self.get_map_with_agents()
-        for agent in self.agents.values():
-            obs=[]
-            agent.grid = map_with_agents
-            rgb_arr = self.map_to_colors(agent.grid, self.color_map)
-            for row_elem in range(agent.grid.shape[0]):
-                for col_elem in range(agent.grid.shape[1]):
-                    if rgb_arr[row_elem][col_elem][1]==255:
-                        obs.append((row_elem, col_elem))
-            observations[agent.agent_id]=obs
-        return observations
-
-    def badapple_observations(self):
-        observations=[]
-        map_with_agents = self.get_map_with_agents()
-        rgb_arr = self.map_to_colors(map_with_agents, self.color_map)
-        for row_elem in range(map_with_agents.shape[0]):
-            for col_elem in range(map_with_agents.shape[1]):
-                if rgb_arr[row_elem][col_elem][0]==245:
-                    observations.append((row_elem, col_elem))
-        return observations
-
-    def agent_observations(self):
-        observations = []
-        map_with_agents = self.get_map_with_agents()
-        rgb_arr = self.map_to_colors(map_with_agents, self.color_map)
-        for row_elem in range(map_with_agents.shape[0]):
-            for col_elem in range(map_with_agents.shape[1]):
-                if rgb_arr[row_elem][col_elem][0] not in [180,0,245,255]:
-                    observations.append((row_elem, col_elem))
-        return observations
-    """
 
     def reset(self):
         """Reset the environment.
@@ -606,92 +570,6 @@ class MapEnv(MultiAgentEnv):
         self.build_walls()
         self.custom_reset()
 
-    def update_map_fire(self, firing_pos, firing_orientation, fire_len, fire_char,         
-                        cell_types=[], update_char=[], blocking_cells='P'):
-        updates=[]
-        return updates
-        """From a firing position, fire a beam that may clean or hit agents
-
-        Notes:
-            (1) Beams are blocked by agents
-            (2) A beam travels along until it hits a blocking cell at which beam the beam
-                covers that cell and stops
-            (3) If a beam hits a cell whose character is in cell_types, it replaces it with
-                the corresponding index in update_char
-            (4) As per the rules, the beams fire from in front of the agent and on its
-                sides so the beam that starts in front of the agent travels out one
-                cell further than it does along the sides.
-            (5) This method updates the beam_pos, an internal representation of how
-                which cells need to be rendered with fire_char in the agent view
-
-        Parameters
-        ----------
-        firing_pos: (list)
-            the row, col from which the beam is fired
-        firing_orientation: (list)
-            the direction the beam is to be fired in
-        fire_len: (int)
-            the number of cells forward to fire
-        fire_char: (str)
-            the cell that should be placed where the beam goes
-        cell_types: (list of str)
-            the cells that are affected by the beam
-        update_char: (list of str)
-            the character that should replace the affected cells.
-        blocking_cells: (list of str)
-            cells that block the firing beam
-        Returns
-        -------
-        updates: (tuple (row, col, char))
-            the cells that have been hit by the beam and what char will be placed there
-
-        agent_by_pos = {tuple(agent.get_pos()): agent_id for agent_id, agent in self.agents.items()}
-        start_pos = np.asarray(firing_pos)
-        firing_direction = ORIENTATIONS[firing_orientation]
-        # compute the other two starting positions
-        right_shift = self.rotate_right(firing_direction)
-        firing_pos = [start_pos, start_pos + right_shift - firing_direction,
-                      start_pos - right_shift - firing_direction]
-        firing_points = []
-        updates = []
-        for pos in firing_pos:
-            next_cell = pos + firing_direction
-            for i in range(fire_len):
-                if self.test_if_in_bounds(next_cell) and \
-                        self.world_map[next_cell[0], next_cell[1]] != '@':
-
-                    # FIXME(ev) code duplication
-                    # agents absorb beams
-                    # activate the agents hit function if needed
-                    if [next_cell[0], next_cell[1]] in self.agent_pos:
-                        agent_id = agent_by_pos[(next_cell[0], next_cell[1])]
-                        self.agents[agent_id].hit(fire_char)
-                        firing_points.append((next_cell[0], next_cell[1], fire_char))
-                        if self.world_map[next_cell[0], next_cell[1]] in cell_types:
-                            type_index = cell_types.index(self.world_map[next_cell[0],
-                                                                         next_cell[1]])
-                            updates.append((next_cell[0], next_cell[1], update_char[type_index]))
-                        break
-
-                    # update the cell if needed
-                    if self.world_map[next_cell[0], next_cell[1]] in cell_types:
-                        type_index = cell_types.index(self.world_map[next_cell[0], next_cell[1]])
-                        updates.append((next_cell[0], next_cell[1], update_char[type_index]))
-
-                    firing_points.append((next_cell[0], next_cell[1], fire_char))
-
-                    # check if the cell blocks beams. For example, waste blocks beams.
-                    if self.world_map[next_cell[0], next_cell[1]] in blocking_cells:
-                        break
-
-                    # increment the beam position
-                    next_cell += firing_direction
-
-                else:
-                    break
-
-        self.beam_pos += firing_points
-"""
 
     def spawn_point(self):
         """Returns a randomly selected spawn point."""
@@ -709,8 +587,8 @@ class MapEnv(MultiAgentEnv):
     def spawn_rotation(self):
         """Return a randomly selected initial rotation for an agent"""
         #rand_int = np.random.randint(len(ORIENTATIONS.keys()))
-        rand_int = 2
-        return list(ORIENTATIONS.keys())[rand_int]
+        #return list(ORIENTATIONS.keys())[rand_int]
+        return 'UP'
 
     def rotate_view(self, orientation, view):
         """Takes a view of the map and rotates it the agent orientation

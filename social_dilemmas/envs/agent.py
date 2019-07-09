@@ -19,7 +19,7 @@ BASE_ACTIONS = {0: 'MOVE_LEFT',  # Move left
 
 class Agent(object):
 
-    def __init__(self, agent_id, start_pos, start_orientation, grid, norm, row_size, col_size):
+    def __init__(self, agent_id, start_pos, start_orientation, grid, norm, reward, row_size, col_size):
         """Superclass for all agents.
 
         Parameters
@@ -45,7 +45,8 @@ class Agent(object):
         self.row_size = row_size
         self.col_size = col_size
         self.reward_this_turn = 0
-        self.norm = norm
+        self.norm = dict(norm)
+        self.reward = dict(reward)
 
 
     @property
@@ -150,74 +151,17 @@ class Agent(object):
         """Defines how an agent interacts with the char it is standing on"""
         raise NotImplementedError
 
-    def set_norm(self, social_norm, allowed):
-        self.norm[social_norm] = allowed
 
 
-HARVEST_ACTIONS = BASE_ACTIONS.copy()
-HARVEST_ACTIONS.update({7: 'FIRE'})  # Fire a penalty beam
 
-HARVEST_VIEW_SIZE = 7
+NORM_ACTIONS = BASE_ACTIONS.copy()
+NORM_VIEW_SIZE = 7
+MAX_ASTAR_DEPTH = 50
 
-
-class HarvestAgent(Agent):
-
-    def __init__(self, agent_id, start_pos, start_orientation, grid, view_len=HARVEST_VIEW_SIZE):
+class NormAgent(Agent):
+    def __init__(self, agent_id, start_pos, start_orientation, grid, norm, reward, view_len=NORM_VIEW_SIZE):
         self.view_len = view_len
-        super().__init__(agent_id, start_pos, start_orientation, grid, view_len, view_len)
-        self.update_agent_pos(start_pos)
-        self.update_agent_rot(start_orientation)
-
-    @property
-    def action_space(self):
-        return Discrete(8)
-
-    # Ugh, this is gross, this leads to the actions basically being
-    # defined in two places
-    def action_map(self, action_number):
-        """Maps action_number to a desired action in the map"""
-        return HARVEST_ACTIONS[action_number]
-
-    @property
-    def observation_space(self):
-        return Box(low=0.0, high=0.0, shape=(2 * self.view_len + 1,
-                                             2 * self.view_len + 1, 3), dtype=np.float32)
-
-    def hit(self, char):
-        if char == 'F':
-            self.reward_this_turn -= 50
-
-    def fire_beam(self, char):
-        if char == 'F':
-            self.reward_this_turn -= 1
-
-    def get_done(self):
-        return False
-
-    def consume(self, char):
-        """Defines how an agent interacts with the char it is standing on"""
-        if char == 'A':
-            self.reward_this_turn += 1
-            return ' '
-        else:
-            return char
-
-
-        
-
-
-CLEANUP_ACTIONS = BASE_ACTIONS.copy()
-
-CLEANUP_ACTIONS.update({7: 'FIRE',  # Fire a penalty beam
-                        8: 'CLEAN'})  # Fire a cleaning beam
-
-CLEANUP_VIEW_SIZE = 7
-
-
-class CleanupAgent(Agent):
-    def __init__(self, agent_id, start_pos, start_orientation, grid, norm, view_len=CLEANUP_VIEW_SIZE):
-        self.view_len = view_len
-        super().__init__(agent_id, start_pos, start_orientation, grid, norm, view_len, view_len)
+        super().__init__(agent_id, start_pos, start_orientation, grid, norm, reward, view_len, view_len)
         # remember what you've stepped on
         self.update_agent_pos(start_pos)
         self.update_agent_rot(start_orientation)
@@ -235,48 +179,49 @@ class CleanupAgent(Agent):
     # defined in two places
     def action_map(self, action_number):
         """Maps action_number to a desired action in the map"""
-        return CLEANUP_ACTIONS[action_number]
+        return NORM_ACTIONS[action_number]
 
-    def fire_beam(self, char):
-        if char == 'F':
-            self.reward_this_turn -= 1
 
     def get_done(self):
         return False
 
-    def hit(self, char):
-        if char == 'F':
-            self.reward_this_turn -= 50
 
     def consume(self, char):
         """Defines how an agent interacts with the char it is standing on"""
-        if char == 'A':
-            self.reward_this_turn += 1
-            return ' '
-        elif char == 'D':
+        if char in self.reward:
             return ' '
         else:
             return char
 
     def dist_to_apples(self, x, y, goalx, goaly):
         return abs(x-goalx) + abs(y-goaly)
-    
-    
+
+    # find the level 0 goal of the current agent
+    # obs - dictionary of possible goals {(x_coor, y_coor): 'goal_type'}
+    # x, y - starting position
+    # goal is calculated according to reward + norm - distance
     def find_goal(self, obs, x, y):
-        min_coordinate=[float('inf'), float('inf')]    #find the level 0 goal of the current agent
+        goal =[float('inf'), float('inf')]
         for item in obs:
-            a = abs(x-item[0]) + abs(y-item[1])
-            b = abs(x-min_coordinate[0]) + abs(y-min_coordinate[1])
+            item_cost = abs(x-item[0]) + abs(y-item[1])
+            goal_cost = abs(x-goal[0]) + abs(y-goal[1])
+            item_util = self.norm[obs[item]] + self.reward[obs[item]] - item_cost/10
+            if goal != [float('inf'), float('inf')]:
+                goal_util = self.reward[obs[tuple(goal)]] - goal_cost/10
+            else:
+                goal_util = float('-inf')
+            if item_util>goal_util:
+                goal[0]=item[0]
+                goal[1]=item[1]
+        return goal
 
-            if a<b:
-                min_coordinate[0]=item[0]
-                min_coordinate[1]=item[1]
-        return min_coordinate
-
-    def find_final_goal(self, obs, x, y, agent_locs, depth):
+    # x, y - coordinates of start position
+    # obs - dict of goals
+    # agent_locs - location of all agents
+    def find_final_goal(self, x, y, obs, agent_locs, depth):
         if depth == 0 :
-            min_coordinate = self.find_goal(obs, x, y)
-            return min_coordinate
+            goal = self.find_goal(obs, x, y)
+            return goal
 
         else:
             # Initialize with my distance to all possible goals
@@ -284,38 +229,32 @@ class CleanupAgent(Agent):
             for item in agent_locs:
                 other_x = item[0]
                 other_y = item[1]
-                #print(agent_locs)
-                #print(other_x, "  ", other_y)
-                other_goal = self.find_final_goal(obs, other_x, other_y, agent_locs, depth-1)
-                #print("other goal: ", other_goal, "other position:  ", (other_x, other_y))
+                other_goal = self.find_final_goal(other_x, other_y, obs, agent_locs, depth-1)
                 if other_goal == None:
                     other_dist = float('inf')
                 else:
                     other_dist = self.dist_to_apples(other_x, other_y, other_goal[0], other_goal[1])
-                    #print("other distance: ", other_dist)
-                #print("agent id:  ", self.agent_id)
-                #print("self.pos: ", self.pos)
-                try:
+                if other_goal != None and other_goal != [float('inf'), float('inf')]:
                     # If other is closer to goal than I am
                     if other_dist < goal_dist[(other_goal[0], other_goal[1])]:
                         # Then goal is unreachable by me
                         goal_dist[(other_goal[0], other_goal[1])] = float('inf')
-                except:
-                    pass
-            try:
-                return min(goal_dist,key=goal_dist.get)
-            except:
+            #utility function reward - cost
+            goal_util = {goal: self.reward[obs[goal]] - goal_dist[goal]/10 for goal in goal_dist}
+            if goal_util != {}:
+                goal = max(goal_util,key=goal_util.get)
+                return goal if goal_util[goal] > 0 else None
+            else:
                 return None
 
 
 
 
+
+    #x, y: goal coordinate
     def determine_action(self, x, y):
-        allowed_norms = []
-        #get a list of allowed norms
-        for item in self.norm:
-            if self.norm[item]:
-                allowed_norms.append(item)
+        #get norms
+        allowed_norms = [norm for norm in self.norm if self.norm[norm]]
         #maze marking with 1 and 0: 1-norms not allowed, 0-allowed norms
         maze = []
         for row_elem in range(self.grid.shape[0]):
@@ -327,10 +266,10 @@ class CleanupAgent(Agent):
                     row.append(1)
             maze.append(row)
         path = astar(maze, (self.pos[0], self.pos[1]), (x, y))
-        try:
+        if path!= None:
             (x_coor, y_coor) = path[1]
-        except:
-            return 4
+        else:
+            return 4  # 4 - stay
 
         if (y_coor!= self.pos[1]):
             action = 2 if self.pos[1]>y_coor else 3
@@ -342,27 +281,22 @@ class CleanupAgent(Agent):
 
     
     def policy(self, depth):
-        #get norms
-        allowed_norms = []
-        for elem in self.norm:
-            if self.norm[elem]:
-                allowed_norms.append(elem)
-
+        allowed_norms = [norm for norm in self.norm if self.norm[norm]]
         #obtain apple and agent locations
-        apple_locs = []
+        apple_locs = {}
         agent_locs = []
         for row_elem in range(self.grid.shape[0]):
             for column_elem in range(self.grid.shape[1]):
-                if self.grid[row_elem][column_elem] in allowed_norms:
-                    apple_locs.append((row_elem, column_elem))
-                elif self.grid[row_elem][column_elem] in '123456789P':
+                item = self.grid[row_elem][column_elem]
+                if item in allowed_norms:
+                    apple_locs[(row_elem, column_elem)]=item
+                elif item in '123456789':
                     agent_locs.append((row_elem, column_elem))
-
-        min_coordinate=self.find_final_goal(apple_locs, self.pos[0], self.pos[1], agent_locs,depth)
-        if min_coordinate == None:
-            return 4
+        goal=self.find_final_goal(self.pos[0], self.pos[1], apple_locs, agent_locs,depth)
+        if goal == None:
+            return 4    #stay if did not find a goal
         else:
-            return self.determine_action(min_coordinate[0], min_coordinate[1])
+            return self.determine_action(goal[0], goal[1]) #find optimal path
 
 
 
@@ -400,10 +334,10 @@ def astar(maze, start, end):
     open_list.append(start_node)
 
 
-    loop_cycle = 0
+    iterations = 0
     # Loop until you find the end
-    while len(open_list) > 0 and loop_cycle < 300:
-        loop_cycle+=1
+    while len(open_list) > 0:
+        iterations+=1
         # Get the current node
         current_node = open_list[0]
         current_index = 0
@@ -424,7 +358,7 @@ def astar(maze, start, end):
                 path.append(current.position)
                 current = current.parent
             return path[::-1] # Return reversed path
-        if loop_cycle == 299:
+        if iterations >= MAX_ASTAR_DEPTH:
             return None
 
         # Generate children

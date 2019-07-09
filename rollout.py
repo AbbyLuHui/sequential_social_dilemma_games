@@ -7,9 +7,11 @@ import os
 import sys
 import shutil
 import tensorflow as tf
+import torch
+import matplotlib.pyplot as plt
 
-from social_dilemmas.envs.cleanup import CleanupEnv
-from social_dilemmas.envs.harvest import HarvestEnv
+from social_dilemmas.envs.norm import NormEnv
+from social_dilemmas.observer import Observer
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -17,8 +19,8 @@ tf.app.flags.DEFINE_string(
     'vid_path', os.path.abspath(os.path.join(os.path.dirname(__file__), './videos')),
     'Path to directory where videos are saved.')
 tf.app.flags.DEFINE_string(
-    'env', 'cleanup',
-    'Name of the environment to rollout. Can be cleanup or harvest.')
+    'env', 'norm',
+    'Name of the environment to rollout. Can be cleanup, harvest or norm.')
 tf.app.flags.DEFINE_string(
     'render_type', 'pretty',
     'Can be pretty or fast. Implications obvious.')
@@ -29,14 +31,12 @@ tf.app.flags.DEFINE_integer(
 
 class Controller(object):
 
-    def __init__(self, env_name='cleanup'):
+    def __init__(self, env_name='norm'):
         self.env_name = env_name
-        if env_name == 'harvest':
-            print('Initializing Harvest environment')
-            self.env = HarvestEnv(num_agents=5, render=True)
-        elif env_name == 'cleanup':
-            print('Initializing Cleanup environment')
-            self.env = CleanupEnv(num_agents=5, render=True)
+        if env_name == 'norm':
+            print('Initializing norm environment')
+            self.env = NormEnv(num_agents=2, render=True,
+                               norm={'G':True, 'R':False,'B':False}, reward={'G':0.5,'R':0.5,'B':0.5})
         else:
             print('Error! Not a valid environment type')
             return
@@ -59,25 +59,22 @@ class Controller(object):
         full_obs = [np.zeros(
             (shape[0], shape[1], 3), dtype=np.uint8) for i in range(horizon)]
 
+        observer = Observer(list(self.env.agents.values())[0].grid.copy())
+        loss_norm=[]
         for i in range(horizon):
             agents = list(self.env.agents.values())
+            observer.update_grid(agents[0].grid)
             action_dim = agents[0].action_space.n
-            #rand_action = np.random.randint(action_dim, size=5)
-            #apple_pos = self.env.apple_observations()
-            #b_pos = self.env.badapple_observations()
-            #others = self.env.agent_observations()
-
-
-# 3- go right; 2 - go left; 1 - go down; 0 - go up; 
-            depth=3
-            #if(i<=2):
-            #    depth=0
-            obs, rew, dones, info, = self.env.step({'agent-0': agents[0].policy(depth),
-                                                    'agent-1': agents[1].policy(depth),
-                                                    'agent-2': agents[2].policy(depth),
-                                                    'agent-3': agents[3].policy(depth),
-                                                    'agent-4': agents[4].policy(depth)})
-
+            depth = 2
+            # 3- go right; 2 - go left; 1 - go down; 0 - go up;
+            action_list = []
+            for j in range(self.env.num_agents):
+                act = agents[j].policy(depth)
+                action_list.append(act)
+            obs, rew, dones, info, = self.env.step({'agent-%d'%k: action_list[k] for k in range(self.env.num_agents)})
+            loss_norm.append(float(observer.observation(action_list)))
+            #for agent in range(self.env.num_agents):
+            #    print(agents[agent].reward)
 
             sys.stdout.flush()
 
@@ -88,6 +85,7 @@ class Controller(object):
             full_obs[i] = rgb_arr.astype(np.uint8)
             observations.append(obs['agent-0'])
             rewards.append(rew['agent-0'])
+        #print("Loss norm: ", loss_norm)
 
         return rewards, observations, full_obs
 
