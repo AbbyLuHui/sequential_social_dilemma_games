@@ -47,7 +47,7 @@ NORM_MAP = [
     '@GGGB R      GRGG@',
     '@GBGGG  B   BGRRG@',
     '@GGGB    R   GGGB@',
-    '@GGRGG    B GBGGG@',
+    '@GGRGB    B GBGGG@',
     '@@@@@@@@@@@@@@@@@@']
 
 

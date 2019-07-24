@@ -5,11 +5,12 @@ import pyro
 import pyro.distributions as dist
 from social_dilemmas.constants import NORM_MAP
 from social_dilemmas.envs.map_env import MapEnv, ACTIONS
-from social_dilemmas.envs.agent import NormAgent  # CLEANUP_VIEW_SIZE
+from social_dilemmas.envs.agent import NormAgent
+from social_dilemmas.explorer_dirichlet import ExplorerAgent
 
-REWARD_PRIOR = {0: [0, 0.1, 0.9],
-                1: [1/3, 1/3, 1/3],
-                2: [1/3, 1/3, 1/3]} #norm: [reward=0, reward=1, reward=2]
+REWARD_PRIOR = {0: [0., 0.2, 0.8],
+                1: [0.2, 0.8, 0.],
+                2: [0.2, 0.8, 0.]} #norm: [reward=0, reward=1, reward=2]
 LETTER_TO_NUMBER = {'G': 0,
                     'R': 1,
                     'B': 2}
@@ -20,7 +21,7 @@ class NormEnv(MapEnv):
     def __init__(self, ascii_map=NORM_MAP, num_agents=1, render=False, norm=dict(), reward=dict()):
         super().__init__(ascii_map, num_agents, render, norm, reward)
         self.pos_dict={'G':[], 'R':[], 'B':[]}
-        self.respawn_prob={'G':0.01,'R':0.005,'B':0.005}
+        self.respawn_prob={'G':0.005,'R':0.005,'B':0.005}
         # make a dict of the potential apple spawn points
         for row in range(self.base_map.shape[0]):
             for col in range(self.base_map.shape[1]):
@@ -45,7 +46,6 @@ class NormEnv(MapEnv):
     def setup_agents(self):
         """Constructs all the agents in self.agent"""
         map_with_agents = self.get_map_with_agents()
-        #norm = self.get_social_norm()
 
         for i in range(self.num_agents):
             agent_id = 'agent-' + str(i)
@@ -67,3 +67,21 @@ class NormEnv(MapEnv):
                     if rand_num < self.respawn_prob[item]:
                         spawn_points.append((row, col, item))
         return spawn_points
+
+
+class ExploreEnv(NormEnv):
+    def __init__(self, ascii_map=NORM_MAP, num_agents=1, render=False, norm=dict(), reward=dict(), inferred_reward=dict()):
+        super().__init__(ascii_map, num_agents, render, norm, reward)
+        self.inferred_reward=inferred_reward
+
+    def setup_agents(self):
+        map_with_agents = self.get_map_with_agents()
+        for i in range(self.num_agents):
+            agent_id = 'agent-' + str(i)
+            spawn_point = self.spawn_point()
+            rotation = self.spawn_rotation()
+            reward_dict = {reward: int(pyro.sample("reward", dist.Categorical(torch.tensor(REWARD_PRIOR[LETTER_TO_NUMBER[reward]]))))\
+                           for reward in self.norm}
+            print("Real Reward Explorer: ", reward_dict)
+            agent = ExplorerAgent(agent_id, spawn_point, rotation, map_with_agents, self.norm, reward_dict)
+            self.agents[agent_id] = agent

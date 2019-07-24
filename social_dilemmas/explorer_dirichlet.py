@@ -25,14 +25,14 @@ class ExplorerAgent(NormAgent):
         for reward_index in range(len(self.reward)):
             rew_prior[reward_index] = pyro.sample("reward-tensor-"+str(reward_index),
                                                                  dist.Dirichlet(self.reward_count[reward_index]))
-        print("TENSOR PRIOR: ", rew_prior)
+        #print("TENSOR PRIOR: ", rew_prior)
         return rew_prior
 
 
     def consume(self, char):
         if char in self.reward:
             self.reward_count[LETTER_TO_NUMBER[char]][self.reward[char]] += 1
-            print("REWARD COUNT: ", self.reward_count)
+            #print("REWARD COUNT: ", self.reward_count)
             return ' '
         else:
             return char

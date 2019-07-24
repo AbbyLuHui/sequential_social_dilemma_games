@@ -1,5 +1,5 @@
 import torch
-torch.set_default_dtype(torch.float64)
+#torch.set_default_dtype(torch.float64)
 import pyro
 import pyro.distributions as dist
 from pyro.infer import config_enumerate, infer_discrete
@@ -12,9 +12,9 @@ NORM_DICT={0: "G",
            1: "R",
            2: "B"}
 
-REWARD_PRIOR = {0: [0., 0.1, 0.9],
-                1: [0.9, 0.1, 0.],
-                2: [1/3, 1/3, 1/3]} #norm: [reward=0, reward=1, reward=2]
+#REWARD_PRIOR = {0: [0., 0., 1.],
+#                1: [0., 0., 1.],
+#                2: [1., 0., 0.]} #norm: [reward=0, reward=1, reward=2]
 
 REWARD_LIST=[0,1,2]
 
@@ -23,26 +23,29 @@ ACTION_DICT={0: "GO UP",
              2: "GO LEFT",
              3: "GO RIGHT"}
 
-ENV_NORM = {0:1, 1:0, 2:0}
-
-#State = collections.namedtuple("State", ["norm", "action"])
 
 def Marginal(fn):
     return memoize(lambda *args: HashingMarginal(Search(fn).run(*args)))
 
 class Observer():
-    def __init__(self, grid):
+    def __init__(self, grid, explorer_reward):
         self.grid = grid
-        self.env_norm = ENV_NORM
         self.agent_norm = {"G":True, "R":False, "B":False}
-        self.rew_prior = {}
-        #self.rew_prior = {"G":0.5, "R":0.5, "B":0.5}
-        self.n_prior= [1/3,1/3,1/3]
+        self.rew_prior = {}   #distribution over 27 possibilities
+        self.n_prior= [1.,0,0]
         self.agent_no=0
         self.reward_dict = {}
         self.update_reward_dict()
-        self.real_reward=[]
         self.probability_dict={}
+        locs = self.get_agent_locs() #update agent_no
+
+        #take in explorer reward sample, then update the inferred overarching distribution
+        self.REWARD_PRIOR= {}
+        for ag in range(self.agent_no):
+            self.REWARD_PRIOR["agent-{}".format(ag)]=explorer_reward
+        print("EXPLORER REWARD: ", explorer_reward)
+
+
 
     def update_reward_dict(self):
         #create reward_dict for easy interpretation of categorical distribution result
@@ -51,12 +54,16 @@ class Observer():
             for b in range(length):
                 for c in range(length):
                     self.reward_dict[(length**2)*a+length*b+c] = [REWARD_LIST[a], REWARD_LIST[b], REWARD_LIST[c]]
+        print("Reward dict: ", self.reward_dict)
+
 
     #assume norm follows categorical distribution
     def norm_prior(self):
-        prob_tensor = torch.zeros(len(self.env_norm))
-        for i in range(len(self.env_norm)):
-            prob_tensor[i] = self.n_prior[i]
+        prob_tensor = torch.zeros(len(self.agent_norm))
+        total = sum(self.n_prior)
+        temp_list = [i / total for i in self.n_prior] #normalize
+        for i in range(len(self.agent_norm)):
+            prob_tensor[i] = temp_list[i]
         n_prior = pyro.sample("norm", dist.Categorical(prob_tensor))
         return n_prior
 
@@ -65,13 +72,13 @@ class Observer():
         #set self.reward_prior across 27 possibility
         for k in range(self.agent_no):
             self.rew_prior['agent-%d'%k]=torch.zeros(len(REWARD_LIST)**len(NORM_DICT))
-        #reward prior according to REWARD_PRIOR
+        #rew_prior according to REWARD_PRIOR
         for agent_no in range(self.agent_no):
             for rew_no in range(len(self.rew_prior['agent-%d'%agent_no])):
                 prior = 1
                 for norm_no in NORM_DICT:
                     rew = self.reward_dict[rew_no][norm_no]
-                    prior = prior * REWARD_PRIOR[norm_no][rew]
+                    prior = prior * self.REWARD_PRIOR["agent-{}".format(agent_no)][norm_no][rew]
                 self.rew_prior['agent-%d'%agent_no][rew_no] = prior
         #uniform reward prior
         #for k in range(self.agent_no):
@@ -112,48 +119,67 @@ class Observer():
     def update_grid(self, grid):
         self.grid = grid
 
-    def update_reward(self, reward):
-        for rew in reward:
-            self.real_reward.append([rew[norm] for norm in self.agent_norm])
-
     #model of norm, action conditioned upon norm
     @Marginal
     def model(self,data):
         n_prior = self.norm_prior()
         for norm in self.agent_norm:
-            self.agent_norm[norm] = True if norm == NORM_DICT[int(n_prior)] else False
+            self.agent_norm[norm] = False if norm == NORM_DICT[int(n_prior)] else True
         agent_list, rew = self.agent()
         action_prob_list = []
-        i=0
         for ag in agent_list:
             deterministic_action = ag.policy(2)
             action_prob = torch.zeros(5)
             action_prob[deterministic_action]=1.0
             action_prob_list.append(action_prob)
-            i+=1
         act={}
-        for j in range(i):
-            act["act%d"%j] = pyro.sample('action%d'%j, dist.Categorical(action_prob_list[j]), obs=torch.tensor(data[j]))
+        for j in range(self.agent_no):
+            act["act%d"%j] = pyro.sample('action%d'%j, dist.Categorical(probs=action_prob_list[j]), obs=torch.tensor(data[j]))
         return (n_prior.item(),) + tuple(rew["agent-{}".format(ag)].item() for ag in range(self.agent_no)) + \
                tuple(act["act{}".format(k)].item() for k in range(self.agent_no))
 
 
     def observation(self, action):
-        support = self.model(action).enumerate_support()
-        data = [self.model(action).log_prob(s).exp().item() for s in self.model(action).enumerate_support()]
+        #solve the norm updating bug when both agents are not moving
+        #agentsNotMoved = [i==4 for i in action]
+        #if False not in agentsNotMoved:
+        #    return None, None
+
+        marginal = self.model(action)
+        print("Action: ", action)
+        support = marginal.enumerate_support()
+        data = [marginal.log_prob(s).exp().item() for s in support]
         self.probability_dict={support[index]: data[index] for index in range(len(support))}
         #compute norm, reward
-        norm = 0
-        reward = {"agent-{}".format(index):[0*i for i in range(len(self.env_norm))] for index in range(self.agent_no)}
+        norm = {}
+        reward_prior_update = {}
+        reward = {"agent-{}".format(index):[0*i for i in range(len(self.agent_norm))] for index in range(self.agent_no)}
+        for agent_no in range(self.agent_no):
+            reward_prior_update["agent-{}".format(agent_no)]={i:[0*j for j in range(len(self.REWARD_PRIOR["agent-0"][0]))] for i in range(len(self.REWARD_PRIOR["agent-0"]))}
         for key in self.probability_dict:
-            norm += key[0] * self.probability_dict[key]
+            #calculate norm
+            norm[key[0]] = norm[key[0]] + self.probability_dict[key] if key[0] in norm else self.probability_dict[key]
+            #print(key[0], self.probability_dict[key])
+            #calculate reward
             for index in range(self.agent_no):
                 reward_list = self.reward_dict[key[index+1]]
+                # increment possibility for three reward values for each agent
                 new_reward_list = [x * self.probability_dict[key] for x in reward_list]
                 reward["agent-{}".format(index)] = [new_reward_list[i]+reward["agent-{}".format(index)][i] \
-                                                    for i in range(len(self.env_norm))]
-        print("NORM:", norm)
+                                                    for i in range(len(self.agent_norm))]
+                reward_tuple = self.reward_dict[key[index+1]] #reward_tuple that is actually a list
+
+                for reward_no in range(len(reward_tuple)):
+                    reward_prior_update["agent-{}".format(index)][reward_no][reward_tuple[reward_no]] += self.probability_dict[key]
+
+        print("NORM: ", norm)
         print("REWARD: ", reward)
+        #update norm prior
+        for i in range(len(self.agent_norm)):
+            self.n_prior[i] = norm[i]
+        #update reward_prior
+        self.REWARD_PRIOR = reward_prior_update.copy()
+
         return norm, reward
 
 
@@ -231,17 +257,5 @@ class Observer():
         git commit -a
         git status
         git push
-        
-        Wednesday:
-        exact enumeration
-        
-        Problem:
-        Cannot differentiate between norm and reward
-        Cannot attribute correctly when desire is low and norm is high, will assume desire and norm are both high
-        Will be interesting to see what happens when norm is weekened
-        
-        
-        Interesting case:
-        When the agent just does not like blue apple (e.g. reward = 0), it will just stay there and not move.
         """
 

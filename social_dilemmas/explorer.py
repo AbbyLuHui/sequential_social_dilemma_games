@@ -6,7 +6,6 @@ from pyro.infer import config_enumerate, infer_discrete
 from pyro.distributions import Categorical, Empirical
 from social_dilemmas.search_inference import factor, HashingMarginal, memoize, Search
 from social_dilemmas.envs.agent import NormAgent
-import random
 
 def Marginal(fn):
     return memoize(lambda *args: HashingMarginal(Search(fn).run(*args)))
@@ -45,12 +44,14 @@ class ExplorerAgent(NormAgent):
                         fruit_utility[i]=0
                 fruit_util['util-'+str(reward_index)] = pyro.sample("util-"+str(reward_index),dist.Categorical(probs=fruit_utility),obs=torch.tensor(data[1]))
         rew_prior = {i:int(rew_prior[i]) for i in rew_prior}
-        return tuple(rew_prior.values()) + tuple(fruit_util.values())
+        return tuple(rew_prior.values())
 
     def consume(self, char):
         if char in self.reward:
             self.reward_this_turn += self.reward[char]
             result=(LETTER_TO_NUMBER[char], self.reward[char])
+            print(result)
+            print(self.inferred_reward)
             support = self.model(result).enumerate_support()
             data = [self.model(result).log_prob(s).exp().item() for s in support]
 
@@ -61,12 +62,33 @@ class ExplorerAgent(NormAgent):
                 for enum_index in range(len(support)):
                     reward_value_list[support[enum_index][reward_index]] += data[enum_index]
                 inferred_reward[reward_index] = reward_value_list
+            #print("Inferred reward: ", inferred_reward)
             self.inferred_reward=inferred_reward.copy()
-            print(self.inferred_reward)
+            print("Inferred reward prior update: ", self.inferred_reward)
             return ' '
         else:
             return char
 
     def policy(self):
-        return random.randint(0,5)
+        apple_locs = {}
+        for row_elem in range(self.grid.shape[0]):
+            for column_elem in range(self.grid.shape[1]):
+                item = self.grid[row_elem][column_elem]
+                if item in self.norm:
+                    apple_locs[(row_elem, column_elem)]=item
+        goal = self.find_final_goal(self.pos[0], self.pos[1], apple_locs)
+        return super().determine_action(goal[0], goal[1])
+
+    def find_final_goal(self, x, y, obs):
+        goal = [float('inf'), float('inf')]
+        for item in obs:
+            item_cost = abs(x - item[0]) + abs(y - item[1])
+            goal_cost = abs(x - goal[0]) + abs(y - goal[1])
+            if item_cost < goal_cost:
+                goal[0] = item[0]
+                goal[1] = item[1]
+        return goal
+
+
+
 

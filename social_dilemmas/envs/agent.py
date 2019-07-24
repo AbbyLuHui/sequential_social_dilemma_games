@@ -4,8 +4,6 @@ from gym.spaces import Box
 from gym.spaces import Discrete
 import numpy as np
 import utility_funcs as util
-import random
-
 
 # basic moves every agent should do
 BASE_ACTIONS = {0: 'MOVE_LEFT',  # Move left
@@ -153,10 +151,9 @@ class Agent(object):
 
 
 
-
 NORM_ACTIONS = BASE_ACTIONS.copy()
 NORM_VIEW_SIZE = 7
-MAX_ASTAR_DEPTH = 50
+MAX_ASTAR_DEPTH = 200
 
 class NormAgent(Agent):
     def __init__(self, agent_id, start_pos, start_orientation, grid, norm, reward, view_len=NORM_VIEW_SIZE):
@@ -297,6 +294,8 @@ class NormAgent(Agent):
             return 4    #stay if did not find a goal
         else:
             return self.determine_action(goal[0], goal[1]) #find optimal path
+
+
 
 
 

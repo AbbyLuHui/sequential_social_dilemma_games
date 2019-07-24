@@ -6,6 +6,7 @@ import random
 import matplotlib.pyplot as plt
 import numpy as np
 from ray.rllib.env import MultiAgentEnv
+import cv2
 
 ACTIONS = {'MOVE_LEFT': [-1, 0],  # Move left
            'MOVE_RIGHT': [1, 0],  # Move right
@@ -33,7 +34,7 @@ DEFAULT_COLOURS = {' ': [0, 0, 0],  # Black background
                    '1': [159, 67, 255],  # Purple
                    '2': [238, 223, 16],  # Yellow
                    '3': [250, 204, 255],  # Pink
-                   '4': [100, 255, 255],  # Cyan
+                   '4': [100, 249, 255],  # Cyan
                    '5': [254, 151, 0],  # Orange
                    '6': [99, 99, 255],  # Lavender
                    '7': [204, 0, 204],  # Magenta
@@ -203,7 +204,8 @@ class MapEnv(MultiAgentEnv):
         info = {}
         for agent in self.agents.values():
             agent.grid = map_with_agents
-            rgb_arr = self.map_to_colors(agent.get_state(), self.color_map) 
+            rgb_arr = self.map_to_colors(agent.get_state(), self.color_map)
+            agent.orientation='UP'
             rgb_arr = self.rotate_view(agent.orientation, rgb_arr)
             observations[agent.agent_id] = rgb_arr
             #print(rgb_arr[:,:,0])
@@ -342,7 +344,6 @@ class MapEnv(MultiAgentEnv):
             for col_elem in range(map.shape[1]):
                 if np.array_equal(color_map[map[row_elem, col_elem]], np.array([0,255,0])):
                     apple_position.append((row_elem, col_elem))
-        #print(apple_position)
         return apple_position
 
     def render(self, filename=None):
@@ -355,11 +356,22 @@ class MapEnv(MultiAgentEnv):
         map_with_agents = self.get_map_with_agents()
 
         rgb_arr = self.map_to_colors(map_with_agents)
-        plt.imshow(rgb_arr, interpolation='nearest')
+        fig = plt.gcf()
+        my_dpi=fig.get_dpi()
+        fig.set_size_inches(432.0/float(my_dpi),600.0/float(my_dpi))
+        fig2=plt.imshow(rgb_arr, interpolation="nearest",aspect='auto')
+        plt.Axes(fig, [0, 0, 1, 1])
+        plt.axis('off')
+        fig2.axes.get_xaxis().set_visible(False)
+        fig2.axes.get_yaxis().set_visible(False)
+        #fig, ax = plt.subplots(figsize=(432/my_dpi,600/my_dpi), dpi=my_dpi)
+
         if filename is None:
             plt.show()
         else:
-            plt.savefig(filename)
+            plt.savefig(filename, bbox_inches='tight', pad_inches=0, dpi=my_dpi)
+
+
 
     def update_moves(self, agent_actions):
         """Converts agent action tuples into a new map and new agent positions.
