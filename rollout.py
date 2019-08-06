@@ -8,10 +8,12 @@ import sys
 import shutil
 import tensorflow as tf
 import torch
+import matplotlib
 import matplotlib.pyplot as plt
+import csv
 
 from social_dilemmas.envs.norm import NormEnv, ExploreEnv
-from social_dilemmas.observer_exact_enumeration import Observer
+from social_dilemmas.observer_importance_sampling import Observer
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -85,6 +87,8 @@ class Controller(object):
         observer = Observer(list(self.env.agents.values())[0].grid.copy(), REWARD_PRIOR)
         loss_norm=[]
         loss_reward=[]
+        norm_alltime = {i:[] for i in range(len(self.env.norm))}
+        reward_alltime = {"agent-%d"%agent:{fruit:[] for fruit in range(len(list(self.env.agents.values())[0].reward))} for agent in range(len(self.env.agents))}
         for hor in range(horizon):
             agents = list(self.env.agents.values())
             observer.update_grid(agents[0].grid)
@@ -99,6 +103,13 @@ class Controller(object):
             #observer makes an observation of the actions, return inferred norm and reward
             action_list.append(hor)
             norm, reward = observer.observation(tuple(action_list))
+
+            # list of norm_alltime and reward_alltime for writing to file purpose
+            for i in range(len(norm)):
+                norm_alltime[i].append(norm[i])
+            for i in range(len(agents)):
+                for j in range(len(list(self.env.agents.values())[0].reward)):
+                    reward_alltime['agent-%d'%i][j].append(reward['agent-%d'%i][j])
 
             # loss from exact enumeration
             #compute loss norm
@@ -124,8 +135,6 @@ class Controller(object):
 
 
             #loss from importance sampling
-
-
             for agent in range(self.env.num_agents):
                 print("agent {} real reward:".format(agent), agents[agent].reward)
 
@@ -141,8 +150,20 @@ class Controller(object):
 
         print("Loss norm: ", loss_norm)
         print("Loss reward: ", loss_reward)
-
-        return rewards, observations, full_obs
+        print("Norm all time: ", norm_alltime)
+        print("Reward all time: ", reward_alltime)
+        all_results = []
+        timesteps =  (i for i in range(horizon))
+        all_results.append(timesteps)
+        all_results.append(tuple(loss_norm))
+        all_results.append(tuple(loss_reward))
+        for i in range(len(norm_alltime)):
+            all_results.append(tuple(norm_alltime[i]))
+        for agent in reward_alltime:
+            for rew in reward_alltime[agent]:
+                all_results.append(tuple(reward_alltime[agent][rew]))
+        final_result = zip(*all_results)
+        return rewards, observations, full_obs, final_result
 
     def render_rollout(self, horizon=500, path=None,
                        render_type='pretty', fps=8):
@@ -169,11 +190,16 @@ class Controller(object):
                 self.explore(horizon=horizon, save_path=image_path)
                 utility_funcs.make_video_from_image_dir(path, image_path, fps=fps,
                                                         video_name=video_name)
+
             else:
-                rewards, observations, full_obs = self.rollout(
-                    horizon=horizon, save_path=image_path)
+                rewards, observations, full_obs, final_result = \
+                    self.rollout(horizon=horizon, save_path=image_path)
                 utility_funcs.make_video_from_image_dir(path, image_path, fps=fps,
                                                         video_name=video_name)
+
+                with open('2-agents-50-hor-imps-uniform-rew-prior-5000.csv', 'w') as writeFile:
+                    writer = csv.writer(writeFile)
+                    writer.writerows(final_result)
 
             # Clean up images
             shutil.rmtree(image_path)
@@ -183,7 +209,7 @@ class Controller(object):
                 utility_funcs.make_vidoe_from_rgb_imgs(path, image_path, fps=fps,
                                                         video_name=video_name)
             else:
-                rewards, observations, full_obs = self.rollout(horizon=horizon)
+                rewards, observations, full_obs, final_result = self.rollout(horizon=horizon)
                 utility_funcs.make_video_from_rgb_imgs(full_obs, path, fps=fps,
                                                        video_name=video_name)
 

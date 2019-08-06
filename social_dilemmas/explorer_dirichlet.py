@@ -9,9 +9,9 @@ from social_dilemmas.envs.agent import NormAgent
 
 LETTER_TO_NUMBER = {'G':0, 'R':1, 'B':2}
 NORM_VIEW_SIZE=7
-REWARD_PRIOR = {0: torch.tensor([0., 0., 0.]),
-                1: torch.tensor([0., 0., 0.]),
-                2: torch.tensor([0., 0., 0.])}
+REWARD_PRIOR = {0: [1., 1., 1.],
+                1: [1., 1., 1.],
+                2: [1., 1., 1.]}
 
 class ExplorerAgent(NormAgent):
     def __init__(self, agent_id, start_pos, start_orientation, grid, norm,reward):
@@ -23,9 +23,9 @@ class ExplorerAgent(NormAgent):
     def return_reward_prior(self):
         rew_prior = {}
         for reward_index in range(len(self.reward)):
-            rew_prior[reward_index] = pyro.sample("reward-tensor-"+str(reward_index),
-                                                                 dist.Dirichlet(self.reward_count[reward_index]))
-        #print("TENSOR PRIOR: ", rew_prior)
+            total = sum(self.reward_count[reward_index])
+            rew_prior[reward_index] = [reward_pr / total for reward_pr in self.reward_count[reward_index]]
+#pyro.sample("reward-tensor-"+str(reward_index),dist.Dirichlet(self.reward_count[reward_index]))
         return rew_prior
 
 
