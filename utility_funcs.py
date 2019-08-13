@@ -15,6 +15,8 @@ sprite_map = cv2.imread('sequential_social_dilemma_games/spritemap-384.png')
 cherry = sprite_map[120:144, 0:24]
 ghost = sprite_map[144:168, 24:48] #red
 ghost2 = sprite_map[192:216, 0:24] #pink
+ghost3 = sprite_map[192:216, 192:216] #blue
+ghost4 = sprite_map[216:240, 24:48] #orange
 orange = sprite_map[120:144, 48:72]
 grape = sprite_map[120:144, 120:144]
 
@@ -87,6 +89,16 @@ def change_to_sprite(image):
                 for pixel_row in range(len(ghost2)):
                     for pixel_col in range(len(ghost2[0])):
                         new_image[row-5 + pixel_row][col-5 + pixel_col] = ghost2[pixel_row][pixel_col]
+            # if pink, change to ghost3
+            elif pixel[1]==204 and pixel[2]==250:
+                for pixel_row in range(len(ghost3)):
+                    for pixel_col in range(len(ghost3[0])):
+                        new_image[row-5+pixel_row][col-5+pixel_col] = ghost3[pixel_row][pixel_col]
+            # if cyan, change to ghost4
+            elif pixel[1]==249 and pixel[2]==100:
+                for pixel_row in range(len(ghost4)):
+                    for pixel_col in range(len(ghost4[0])):
+                        new_image[row-5+pixel_row][col-5+pixel_col] = ghost4[pixel_row][pixel_col]
             # if green, change to grapes
             elif pixel[1]==255 and pixel[0]==0 and pixel[2]==0:
                 for pixel_row in range(len(grape)):

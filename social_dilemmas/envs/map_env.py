@@ -357,14 +357,14 @@ class MapEnv(MultiAgentEnv):
 
         rgb_arr = self.map_to_colors(map_with_agents)
         fig = plt.gcf()
-        my_dpi=fig.get_dpi()
+        my_dpi=96
+        #my_dpi=fig.get_dpi()
         fig.set_size_inches(432.0/float(my_dpi),600.0/float(my_dpi))
         fig2=plt.imshow(rgb_arr, interpolation="nearest",aspect='auto')
         plt.Axes(fig, [0, 0, 1, 1])
         plt.axis('off')
         fig2.axes.get_xaxis().set_visible(False)
         fig2.axes.get_yaxis().set_visible(False)
-        #fig, ax = plt.subplots(figsize=(432/my_dpi,600/my_dpi), dpi=my_dpi)
 
         if filename is None:
             plt.show()

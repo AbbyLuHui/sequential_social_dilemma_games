@@ -21,7 +21,7 @@ class NormEnv(MapEnv):
     def __init__(self, ascii_map=NORM_MAP, num_agents=1, render=False, norm=dict(), reward=dict()):
         super().__init__(ascii_map, num_agents, render, norm, reward)
         self.pos_dict={'G':[], 'R':[], 'B':[]}
-        self.respawn_prob={'G':0.005,'R':0.005,'B':0.005}
+        self.respawn_prob={'G':0.003,'R':0.005,'B':0.005}
         # make a dict of the potential apple spawn points
         for row in range(self.base_map.shape[0]):
             for col in range(self.base_map.shape[1]):

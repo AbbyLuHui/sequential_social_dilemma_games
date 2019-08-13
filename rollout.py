@@ -33,6 +33,7 @@ tf.app.flags.DEFINE_integer(
 REWARD_PRIOR = {0: [1/3, 1/3, 1/3],
                 1: [1/3, 1/3, 1/3],
                 2: [1/3, 1/3, 1/3]}
+DEPTH = 2
 
 class Controller(object):
 
@@ -40,7 +41,7 @@ class Controller(object):
         self.env_name = env_name
         if env_name == 'norm':
             print('Initializing norm environment')
-            self.env = NormEnv(num_agents=2, render=True,
+            self.env = NormEnv(num_agents=4, render=True,
                                norm={'G':True, 'R':False,'B':True})
         elif env_name == 'explore':
             print('Initializing explore environment')
@@ -93,13 +94,11 @@ class Controller(object):
             agents = list(self.env.agents.values())
             observer.update_grid(agents[0].grid)
             action_dim = agents[0].action_space.n
-            depth = 2
+
             # List of actions: 3- go right; 2 - go left; 1 - go down; 0 - go up;
-            action_list = []
-            for j in range(self.env.num_agents):
-                act = agents[j].policy(depth)
-                action_list.append(act)
+            action_list = [agents[j].policy(DEPTH) for j in range(self.env.num_agents)]
             obs, rew, dones, info, = self.env.step({'agent-%d'%k: action_list[k] for k in range(len(agents))})
+
             #observer makes an observation of the actions, return inferred norm and reward
             action_list.append(hor)
             norm, reward = observer.observation(tuple(action_list))
@@ -117,7 +116,6 @@ class Controller(object):
             norm_list = [1 if a_norm in true_norm else 0 for a_norm in self.env.norm]
             norm_diff = [norm_list[j] - norm[j] for j in range(len(norm_list))]
             loss_n = sum([norm_diff[j]**2 for j in range(len(norm_diff))]) / len(norm_diff)
-
             loss_norm.append(float(loss_n))
 
             #compute loss reward
@@ -134,7 +132,6 @@ class Controller(object):
             loss_reward.append(float(loss_r))
 
 
-            #loss from importance sampling
             for agent in range(self.env.num_agents):
                 print("agent {} real reward:".format(agent), agents[agent].reward)
 
@@ -197,7 +194,7 @@ class Controller(object):
                 utility_funcs.make_video_from_image_dir(path, image_path, fps=fps,
                                                         video_name=video_name)
 
-                with open('2-agents-50-hor-imps-uniform-rew-prior-5000.csv', 'w') as writeFile:
+                with open('4-agents-50-hor-imps-nonuniform-rew-prior-ex1.csv', 'w') as writeFile:
                     writer = csv.writer(writeFile)
                     writer.writerows(final_result)
 
