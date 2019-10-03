@@ -1,7 +1,7 @@
 [![Build Status](https://travis-ci.com/eugenevinitsky/sequential_social_dilemma_games.svg?branch=master)](https://travis-ci.com/eugenevinitsky/sequential_social_dilemma_games)
 
 # Inferring Social Norms in Temporally Extended Multi-Agent Environments
-This repo is an open-source implementation of DeepMind's Sequential Social Dilemma (SSD) multi-agent game-theoretic environments [1](https://arxiv.org/abs/1702.03037), adapted for norm inference purposes. The model features a modified version of Bayesian Theory of Mind (BToM) [2]. By observing factors such as world state and agent actions, the computer will make inferences on latent variables such as norm and desire. The inference process is implemented with probabilistic programming language Pyro (http://pyro.ai).
+This repo is an open-source implementation of DeepMind's Sequential Social Dilemma (SSD) multi-agent game-theoretic environments [1], adapted for norm inference purposes. The model features a modified version of Bayesian Theory of Mind (BToM) [2]. By observing factors such as world state and agent actions, the computer will make inferences on latent variables such as norm and desire. The inference process is implemented with probabilistic programming language Pyro (http://pyro.ai).
 
 The implemented environments are structured to be compatible with OpenAIs gym environments (https://github.com/openai/gym) as well as RLlib's Multiagent Environment (https://github.com/ray-project/ray/blob/master/python/ray/rllib/env/multi_agent_env.py)
 
