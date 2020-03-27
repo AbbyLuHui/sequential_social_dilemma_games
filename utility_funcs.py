@@ -1,9 +1,11 @@
 import cv2
 import os
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('PS')
 import numpy as np
 
-sprite_map = cv2.imread('sequential_social_dilemma_games/spritemap-384.png')
+sprite_map = cv2.imread('./spritemap-384.png')
 #25 pixels x 25 pixels
 #cherry = sprite_map[119:144, 0:25]
 #ghost = sprite_map[143:168, 23:48] #red
